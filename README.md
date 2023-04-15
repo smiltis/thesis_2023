@@ -1,11 +1,17 @@
 # thesis_2023
 
-<!-- For installing the libraries -->
+For installing the libraries:
 
-pip install -r requirements.txt --user
+1.) pip install -r requirements.txt --user
 
-<!-- For requirements generation -->
+For requirements generation:
 
-pip show pipreqs <!-- if pipreqs already exist skip next line -->
-pip install pipreqs --user
-python.exe -m pipreqs.pipreqs . --force <!-- Generate the requirements.txt -->
+1.) pip show pipreqs
+
+if pipreqs already exist skip step 2
+
+2.) pip install pipreqs --user
+
+To generate the requirements.txt:
+
+3.) python.exe -m pipreqs.pipreqs . --force
