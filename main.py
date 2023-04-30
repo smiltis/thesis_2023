@@ -152,11 +152,8 @@ def ridge_regression(X, y, title):
   X=np.array(X)
   y=np.array(y)
 
-   # Specify custom alpha values from 0.1 till 5 by the step of 0.1
+  # Specify custom alpha values from 0.1 till 5 by the step of 0.1
   alphas = np.arange(0.1, 5.1, 0.1)
-
-  # best_r_avg_square = -1
-  # best_r_square_avg_alpha = -1
 
   for alpha in alphas:
     # Creates a Ridge regression model
@@ -166,7 +163,6 @@ def ridge_regression(X, y, title):
     k = 5  # Number of folds
     for i in range(5):
       kf = KFold(n_splits=k, shuffle=True, random_state=i)
-      r_scores = []  # List to store R squared scores for each fold
 
       # Perform k-fold cross-validation
       for train_index, test_index in kf.split(X):
@@ -181,10 +177,8 @@ def ridge_regression(X, y, title):
       
         # Calculate R-squared for dependent variables predictions and append it to the r_scores array
         r2 = r2_score(y_test, y_pred,  multioutput='variance_weighted')   # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html
-        r_scores.append(r2)
 
         if title == 'hand-only model':
-          # r2_whole_arm.append({'alpha_value':alpha, 'r2_score':r2})
           r2_hand_only.append(r2)
         elif title == 'whole-arm model':
           r2_whole_arm.append(r2)
@@ -223,7 +217,7 @@ def wilcoxon_test(model_1, model_2, model_1_title, model_2_title):
       else:
          print("{} model has a median R-squared value of {:.5f}, which is {:.5f} higher than {} model".format(model_2_title.capitalize(),np.median(model_2), abs(median_diff),model_1_title))
   else:
-      print("There is no significant difference between the models (p-value = {:.6f})".format(p_value))
+      print("There is no significant difference between the {} and {} models. The p-value = {:.4f} , which is higher than 0.05.".format(model_1_title,model_2_title,p_value))
 
 #This function shows models matrix row wise.
 def showModelsMatrix():
@@ -271,7 +265,7 @@ def showModelsMatrix():
   for i in range(len(sorted_sums)):
       print(str(i+1)+".) "+headers[sorted_indices[i]])
 
-# Beggining of code
+# Beggining of main code
 
 firing_rates = dict['f_rates']
 elbow_position = dict['elbow_pos'] 
