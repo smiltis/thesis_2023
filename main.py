@@ -9,6 +9,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from statistics import mean 
+from scipy.stats import wilcoxon
+import matplotlib.colors as mcolors
 
 
 
@@ -146,43 +148,52 @@ def plot_joints():
   plt.show()
 
 def ridge_regression(X, y, title):
-    # casting lists to np arrays, because with list it gives an error of indexing
-    X=np.array(X)
-    y=np.array(y)
+  # casting lists to np arrays, because with list it gives an error of indexing
+  X=np.array(X)
+  y=np.array(y)
 
-    # Split the dataset into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+   # Specify custom alpha values from 0.1 till 5 by the step of 0.1
+  alphas = np.arange(0.1, 5.1, 0.1)
 
-    # Specify custom alpha values
-    alphas = np.arange(0.1, 5.1, 0.1)
+  # best_r_avg_square = -1
+  # best_r_square_avg_alpha = -1
 
-    # Define the RidgeCV model with cross-validation
-    ridge_cv = RidgeCV(alphas=alphas, cv=KFold(n_splits=5, shuffle=True, random_state=42))
+  for alpha in alphas:
+    # Creates a Ridge regression model
+    ridge = Ridge(alpha=alpha) # alpha=regularization strength - 1 default value - test on multiple to find the best fit
 
-    # Fit the RidgeCV model on the training set
-    ridge_cv.fit(X_train, y_train)
+    # Set up k-fold cross-validation
+    k = 5  # Number of folds
+    for i in range(5):
+      kf = KFold(n_splits=k, shuffle=True, random_state=i)
+      r_scores = []  # List to store R squared scores for each fold
 
-    # Get the best alpha value from RidgeCV
-    best_alpha = ridge_cv.alpha_
+      # Perform k-fold cross-validation
+      for train_index, test_index in kf.split(X):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
 
-    # Train the Ridge model with the best alpha on the entire training set
-    ridge_best = Ridge(alpha=best_alpha)
-    ridge_best.fit(X_train, y_train)
+        # Model fitting to the training data
+        ridge.fit(X_train, y_train)
 
-    # Evaluate the Ridge model on the testing set
-    y_pred = ridge_best.predict(X_test)
-    r2 = r2_score(y_test, y_pred,  multioutput='variance_weighted')
+        # Predict dependent variables based per model for test data
+        y_pred = ridge.predict(X_test)
+      
+        # Calculate R-squared for dependent variables predictions and append it to the r_scores array
+        r2 = r2_score(y_test, y_pred,  multioutput='variance_weighted')   # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html
+        r_scores.append(r2)
 
-    #Plot predicted and actual data
-    plotPredictedAndTest(y_test, y_pred, title)
-    print(y_test[0])
-    print(y_pred[0])
+        if title == 'hand-only model':
+          # r2_whole_arm.append({'alpha_value':alpha, 'r2_score':r2})
+          r2_hand_only.append(r2)
+        elif title == 'whole-arm model':
+          r2_whole_arm.append(r2)
+        elif title == 'egocentric model':
+          r2_egocentric.append(r2)
+        elif title == 'joint-angles model':
+          r2_joint_angles.append(r2)
 
-    # Print the best alpha value and the R2 score on the testing set
-    print("Best Average R Squared score across all",title,"K-folds with alpha value of", best_alpha,":", r2)
-
-
-
+   
 # This function receives an array of hand cartessian coordinates and transforms it to egocentric coordinates
 def egocentric_coordinates(hand_position):
     # Array for storing the calculated egocentric coordinates
@@ -201,7 +212,64 @@ def egocentric_coordinates(hand_position):
 
     return array_of_hand_position
 
+#This function performs Wilcoxon signed-rank test to compare two models
+def wilcoxon_test(model_1, model_2, model_1_title, model_2_title):
+  statistic, p_value = wilcoxon(model_1, model_2)
+  if p_value < 0.05:
+      print("There is a significant difference between the models (p-value = {:.4f})".format(p_value))
+      median_diff = round((np.median(model_1) - np.median(model_2)), 5)
+      if median_diff > 0:
+        print("{} model has a median R-squared value of {:.5f}, which is {:.5f} higher than {} model".format(model_1_title.capitalize(),np.median(model_1), median_diff,model_2_title))
+      else:
+         print("{} model has a median R-squared value of {:.5f}, which is {:.5f} higher than {} model".format(model_2_title.capitalize(),np.median(model_2), abs(median_diff),model_1_title))
+  else:
+      print("There is no significant difference between the models (p-value = {:.6f})".format(p_value))
 
+#This function shows models matrix row wise.
+def showModelsMatrix():
+  # Define the values for models comparisons row wise
+  models_values = np.array([[0, 1, 0, 1],
+                    [0, 0, 0, 1],
+                    [1, 1, 0, 1],
+                    [0, 0, 0, 0]])
+
+  # Define the headers for the rows and columns of the table
+  headers = ['Hand only', 'Whole arm', 'Egocentric', 'Joint Angles']
+
+  # Create the plot
+  fig, ax = plt.subplots()
+  im = ax.imshow(models_values, cmap=mcolors.ListedColormap(['white']))
+
+  # Add the row and column headers as ticks
+  ax.set_xticks(np.arange(len(headers)))
+  ax.set_yticks(np.arange(len(headers)))
+  ax.set_xticklabels(headers)
+  ax.set_yticklabels(headers)
+
+  # Rotate the tick labels and set their alignment
+  plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+          rotation_mode="anchor")
+
+  # Loop over the model values and add it to the plot
+  for i in range(len(headers)):
+      for j in range(len(headers)):
+          text = ax.text(j, i, models_values[i, j],
+                        ha="center", va="center", color="black")
+
+  ax.set_title("Models matrix")
+  plt.show()
+
+  # Calculate the sum of values for each model
+  models_sums = np.sum(models_values, axis=1)
+
+  # Sort the model sums in descending order
+  sorted_indices = np.argsort(models_sums)[::-1]
+  sorted_sums = models_sums[sorted_indices]
+
+  # Print the sorted models in the descending order
+  print("Models in descending order:")
+  for i in range(len(sorted_sums)):
+      print(str(i+1)+".) "+headers[sorted_indices[i]])
 
 # Beggining of code
 
@@ -226,6 +294,12 @@ hand_only_variables = ['hand X','hand Y','hand Z']
 whole_arm_variables = ['hand X','hand Y','hand Z', 'elbow X','elbow Y','elbow Z']
 egocentric_variables = ['r', 'theta', 'phi']
 
+# R2 arrays for each ridge regression model
+r2_hand_only = []
+r2_whole_arm = []
+r2_egocentric = []
+r2_joint_angles = []
+
 # Plotting example data
 x = hand_position[:100,0].tolist()
 y = hand_position[:100,1].tolist()
@@ -241,10 +315,28 @@ plot_joints()
 
 # Ridge regression for different models pass data to parameters
 
-ridge_regression(z_scored_firing_rates,hand_position, 'hand-only model')
-ridge_regression(z_scored_firing_rates,whole_arm, 'whole-arm model')
-ridge_regression(z_scored_firing_rates,egocentric, 'egocentric model')
-ridge_regression(z_scored_firing_rates,joint_angles, 'joint-angles model')
+ridge_regression(z_scored_firing_rates, hand_position, 'hand-only model')
+ridge_regression(z_scored_firing_rates, whole_arm, 'whole-arm model')
+ridge_regression(z_scored_firing_rates, egocentric, 'egocentric model')
+ridge_regression(z_scored_firing_rates, joint_angles, 'joint-angles model')
+
+# Conclusions - wilcoxon signed-rank test
+
+wilcoxon_test(r2_hand_only, r2_whole_arm, 'hand only', 'whole arm')
+wilcoxon_test(r2_hand_only, r2_egocentric, 'hand only', 'egocentric')
+wilcoxon_test(r2_hand_only, r2_joint_angles, 'hand only', 'joint angles')
+
+wilcoxon_test(r2_whole_arm, r2_egocentric, 'whole arm', 'egocentric')
+wilcoxon_test(r2_whole_arm, r2_joint_angles, 'whole arm', 'joint angles')
+
+wilcoxon_test(r2_egocentric, r2_joint_angles, 'egocentric', 'joint angles')
+
+showModelsMatrix()
+
+
+
+
+
 
 
 
