@@ -1,14 +1,10 @@
 # Libraries imports
 import scipy
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from sklearn.linear_model import Ridge
-from sklearn.linear_model import RidgeCV
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
-from statistics import mean 
 from scipy.stats import wilcoxon
 import matplotlib.colors as mcolors
 
