@@ -7,8 +7,8 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
 from scipy.stats import wilcoxon
 import matplotlib.colors as mcolors
-
-
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import RidgeCV
 
 # Load .mat file and remove unnecessary columns
 dict = scipy.io.loadmat('./data/BMI_Data_Smiltis.mat')
@@ -48,56 +48,65 @@ def plotPredictedAndTest(y_test, y_pred, title):
   
   count = 0
   if title == 'hand-only model':
-    for variable in hand_only_variables:
+    for i in hand_only_variables:
         
       # Plot X vs. time in the for subplot
       axes[count].plot(time, y_test[:,count], label='{} actual'.format(hand_only_variables[count]))
       axes[count].plot(time, y_pred[:,count],  label='{} predicted'.format(hand_only_variables[count]))
       axes[count].set_xlabel('Time (ms)')
       axes[count].set_ylabel(hand_only_variables[count])
-      # axes[count].set_title('{} vs Time for '.format(hand_only_variables[count], title))
       axes[count].set_title(''+hand_only_variables[count]+' vs Time for '+title+'')
       axes[count].legend(loc='center right')
 
       count = count + 1
 
   elif title == 'whole-arm model':
-    for variable in whole_arm_variables:
+    for i in whole_arm_variables:
         
       # Plot X vs. time in the for subplot
       axes[count].plot(time, y_test[:,count], label='{} actual'.format(whole_arm_variables[count]))
       axes[count].plot(time, y_pred[:,count],  label='{} predicted'.format(whole_arm_variables[count]))
       axes[count].set_xlabel('Time (ms)')
       axes[count].set_ylabel(whole_arm_variables[count])
-      # axes[count].set_title('{} vs Time for {}'.format(whole_arm_variables[count], title))
       axes[count].set_title(''+whole_arm_variables[count]+' vs Time for '+title+'')
       axes[count].legend(loc='center right')
 
       count = count + 1
 
-  elif title == 'egocentric model':
-    for variable in egocentric_variables:
+  elif title == 'egocentric hand only model':
+    for i in egocentric_variables:
         
       # Plot X vs. time in the for subplot
       axes[count].plot(time, y_test[:,count], label='{} actual'.format(egocentric_variables[count]))
       axes[count].plot(time, y_pred[:,count],  label='{} predicted'.format(egocentric_variables[count]))
       axes[count].set_xlabel('Time (ms)')
       axes[count].set_ylabel(egocentric_variables[count])
-      # axes[count].set_title('{} vs Time for {}'.format(egocentric_variables[count], title))
       axes[count].set_title(''+egocentric_variables[count]+' vs Time for '+title+'')
       axes[count].legend(loc='center right')
 
       count = count + 1
 
+  elif title == 'egocentric whole arm model':
+    for i in egocentric_variables_whole:
+        
+      # Plot X vs. time in the for subplot
+      axes[count].plot(time, y_test[:,count], label='{} actual'.format(egocentric_variables_whole[count]))
+      axes[count].plot(time, y_pred[:,count],  label='{} predicted'.format(egocentric_variables_whole[count]))
+      axes[count].set_xlabel('Time (ms)')
+      axes[count].set_ylabel(egocentric_variables_whole[count])
+      axes[count].set_title(''+egocentric_variables_whole[count]+' vs Time for '+title+'')
+      axes[count].legend(loc='center right')
+
+      count = count + 1
+
   elif title == 'joint-angles model':
-    for variable in joint_angles_variables:
+    for i in joint_angles_variables:
         
       # Plot X vs. time in the for subplot
       axes[count].plot(time, y_test[:,count], label='{} actual'.format(joint_angles_variables[count]))
       axes[count].plot(time, y_pred[:,count],  label='{} predicted'.format(joint_angles_variables[count]))
       axes[count].set_xlabel('Time (ms)')
       axes[count].set_ylabel(joint_angles_variables[count])
-      # axes[count].set_title(''+joint_angles_variables[count]+' vs Time for '+title+'')
       axes[count].set_title(''+joint_angles_variables[count]+' vs Time for '+title+'')
       axes[count].legend(loc='center right')
 
@@ -147,45 +156,48 @@ def ridge_regression(X, y, title):
   # casting lists to np arrays, because with list it gives an error of indexing
   X=np.array(X)
   y=np.array(y)
+  
+  #Loop from 0 till 99 including for random state
+  for i in range(100):
+    # Split the dataset into training and testing sets, with test being 20 percent
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=i)
 
-  # Specify custom alpha values from 0.1 till 5 by the step of 0.1
-  alphas = np.arange(0.1, 5.1, 0.1)
+    # Specify custom alpha values from 0.1 till 5 by the step of 0.1
+    alphas = np.arange(0.1, 5.1, 0.1)
 
-  for alpha in alphas:
-    # Creates a Ridge regression model
-    ridge = Ridge(alpha=alpha) # alpha=regularization strength - 1 default value - test on multiple to find the best fit
+    # Define the RidgeCV model with cross-validation
+    ridge_cv = RidgeCV(alphas=alphas, cv=KFold(n_splits=5, shuffle=True, random_state=i)) # To shuffle, then random state can be used
+    # https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.KFold.html
 
-    # Set up k-fold cross-validation
-    k = 5  # Number of folds
-    for i in range(5):
-      kf = KFold(n_splits=k, shuffle=True, random_state=i)
+    # Fit the RidgeCV model on the training set
+    ridge_cv.fit(X_train, y_train)
 
-      # Perform k-fold cross-validation
-      for train_index, test_index in kf.split(X):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+    # Get the best alpha value from RidgeCV
+    best_alpha = ridge_cv.alpha_
 
-        # Model fitting to the training data
-        ridge.fit(X_train, y_train)
+    # Train the Ridge model with the best alpha on the entire training set
+    ridge_best = Ridge(alpha=best_alpha)
+    ridge_best.fit(X_train, y_train)
 
-        # Predict dependent variables based per model for test data
-        y_pred = ridge.predict(X_test)
-      
-        # Calculate R-squared for dependent variables predictions and append it to the r_scores array
-        r2 = r2_score(y_test, y_pred,  multioutput='variance_weighted')   # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.r2_score.html
-
-        if title == 'hand-only model':
-          r2_hand_only.append(r2)
-        elif title == 'whole-arm model':
-          r2_whole_arm.append(r2)
-        elif title == 'egocentric model':
-          r2_egocentric.append(r2)
-        elif title == 'joint-angles model':
-          r2_joint_angles.append(r2)
+    # Evaluate the Ridge model on the testing set
+    y_pred = ridge_best.predict(X_test)
+    r2 = r2_score(y_test, y_pred,  multioutput='variance_weighted')
+    # if i == 50:
+    #   plotPredictedAndTest(y_test, y_pred, title)
+    if title == 'hand-only model':
+      r2_hand_only.append(r2)
+    elif title == 'whole-arm model':
+      r2_whole_arm.append(r2)
+    elif title == 'egocentric hand only model':
+      r2_egocentric_hand_only.append(r2)
+    elif title == 'joint-angles model':
+      r2_joint_angles.append(r2)
+    elif title == 'egocentric whole arm model':
+      r2_egocentric_whole_arm.append(r2)
 
    
-# This function receives an array of hand cartessian coordinates and transforms it to egocentric coordinates
-def egocentric_coordinates(hand_position):
+# This function receives an array of hand cartessian coordinates and transforms it to egocentric hand only coordinates
+def egocentric_coordinates_hand_only(hand_position):
     # Array for storing the calculated egocentric coordinates
     array_of_hand_position=[]
 
@@ -201,6 +213,32 @@ def egocentric_coordinates(hand_position):
       array_of_hand_position.append([r,theta,phi])
 
     return array_of_hand_position
+
+# This function receives an array of whole arm(hand and elbow) cartessian coordinates and transforms it to egocentric whole arm coordinates
+# Egocentric because with respect to the observer(shoulder) - polar coordinates.
+def egocentric_coordinates_whole_arm(whole_arm):  
+    # Array for storing the calculated egocentric coordinates
+    array_of_whole_arm_position=[]
+
+    # Loop to calculate coordinates for each hand position
+    for hand_x,hand_y,hand_z, elbow_x,elbow_y,elbow_z in whole_arm:
+      #Calculate radius for each hand position
+      hand_r = np.sqrt(hand_x**2 + hand_y**2 + hand_z**2)
+      #Calculate polar angle for each hand position
+      hand_theta = np.arccos(hand_z / hand_r)
+      #Calculate azimuthal angle for each hand position
+      hand_phi = np.arctan2(hand_y, hand_x)
+      #Calculate radius for each elbow position
+      elbow_r = np.sqrt(elbow_x**2 + elbow_y**2 + elbow_z**2)
+      #Calculate polar angle for each elbow position
+      elbow_theta = np.arccos(elbow_z / elbow_r)
+      #Calculate azimuthal angle for each elbow position
+      elbow_phi = np.arctan2(elbow_y, elbow_x)
+
+      # Appends calculated value to array
+      array_of_whole_arm_position.append([hand_r,hand_theta,hand_phi,elbow_r,elbow_theta,elbow_phi])
+
+    return array_of_whole_arm_position
 
 #This function performs Wilcoxon signed-rank test to compare two models
 def wilcoxon_test(model_1, model_2, model_1_title, model_2_title):
@@ -218,13 +256,13 @@ def wilcoxon_test(model_1, model_2, model_1_title, model_2_title):
 #This function shows models matrix row wise.
 def showModelsMatrix():
   # Define the values for models comparisons row wise
-  models_values = np.array([[0, 1, 0, 1],
-                    [0, 0, 0, 1],
-                    [1, 1, 0, 1],
-                    [0, 0, 0, 0]])
-
+  models_values = np.array([[0, 1, 0, 1, 1],   # Hand only
+                            [0, 0, 0, 1, 1],   # Whole arm
+                            [1, 1, 0, 1, 1],   # 
+                            [0, 0, 0, 0, 1],   #  
+                            [0, 0, 0, 0, 0]])  # 
   # Define the headers for the rows and columns of the table
-  headers = ['Hand only', 'Whole arm', 'Egocentric', 'Joint Angles']
+  headers = ['Hand-Only', 'Whole arm', 'Hand-only Egocentric', 'Joint Angles','Whole arm Egocentric']
 
   # Create the plot
   fig, ax = plt.subplots()
@@ -273,7 +311,8 @@ joint_angles = dict['joint_angle']
 
 hand_only = hand_position
 whole_arm = np.hstack((hand_position,elbow_position)) # put values one to another row wise
-egocentric = egocentric_coordinates(hand_position)
+egocentric_hand_only = egocentric_coordinates_hand_only(hand_position)
+egocentric_whole_arm = egocentric_coordinates_whole_arm(whole_arm)
 
 # Preprocessing data - glazer https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7470933/
 # Z-score firing rates
@@ -283,11 +322,13 @@ z_scored_firing_rates = scipy.stats.zscore(firing_rates)
 hand_only_variables = ['hand X','hand Y','hand Z']
 whole_arm_variables = ['hand X','hand Y','hand Z', 'elbow X','elbow Y','elbow Z']
 egocentric_variables = ['r', 'theta', 'phi']
+egocentric_variables_whole = ['hand r','hand theta','hand phi','elbow r','elbow theta','elbow phi']
 
 # R2 arrays for each ridge regression model
 r2_hand_only = []
 r2_whole_arm = []
-r2_egocentric = []
+r2_egocentric_hand_only = []
+r2_egocentric_whole_arm = []
 r2_joint_angles = []
 
 # Plotting example data
@@ -307,28 +348,40 @@ plot_joints()
 
 ridge_regression(z_scored_firing_rates, hand_position, 'hand-only model')
 ridge_regression(z_scored_firing_rates, whole_arm, 'whole-arm model')
-ridge_regression(z_scored_firing_rates, egocentric, 'egocentric model')
+ridge_regression(z_scored_firing_rates, egocentric_hand_only, 'egocentric hand only model')
 ridge_regression(z_scored_firing_rates, joint_angles, 'joint-angles model')
+ridge_regression(z_scored_firing_rates, egocentric_whole_arm, 'egocentric whole arm model')
 
 # Conclusions - wilcoxon signed-rank test
 
 wilcoxon_test(r2_hand_only, r2_whole_arm, 'hand only', 'whole arm')
-wilcoxon_test(r2_hand_only, r2_egocentric, 'hand only', 'egocentric')
+wilcoxon_test(r2_hand_only, r2_egocentric_hand_only, 'hand only', 'egocentric hand only')
 wilcoxon_test(r2_hand_only, r2_joint_angles, 'hand only', 'joint angles')
+wilcoxon_test(r2_hand_only, r2_egocentric_whole_arm, 'hand only', 'egocentric whole arm')
 
-wilcoxon_test(r2_whole_arm, r2_egocentric, 'whole arm', 'egocentric')
+wilcoxon_test(r2_whole_arm, r2_egocentric_hand_only, 'whole arm', 'egocentric hand only')
 wilcoxon_test(r2_whole_arm, r2_joint_angles, 'whole arm', 'joint angles')
+wilcoxon_test(r2_whole_arm, r2_egocentric_whole_arm, 'whole arm', 'egocentric whole arm')
 
-wilcoxon_test(r2_egocentric, r2_joint_angles, 'egocentric', 'joint angles')
+wilcoxon_test(r2_egocentric_hand_only, r2_joint_angles, 'egocentric hand only', 'joint angles')
+wilcoxon_test(r2_egocentric_hand_only, r2_egocentric_whole_arm, 'egocentric hand only', 'egocentric whole arm')
+
+wilcoxon_test(r2_joint_angles, r2_egocentric_whole_arm, 'joint angles', 'egocentric whole arm')
 
 showModelsMatrix()
 
 
-
-
-
-
-
+# print(firing_rates.shape)
+print("min r2_hand_only: ",min(r2_hand_only))
+print("max r2_hand_only: ",max(r2_hand_only))
+print("min r2_whole_arm: ",min(r2_whole_arm))
+print("max r2_whole_arm: ",max(r2_whole_arm))
+print("min hand egocentric: ",min(r2_egocentric_hand_only))
+print("max hand egocentric: ",max(r2_egocentric_hand_only))
+print("min r2_egocentric_whole_arm: ",min(r2_egocentric_whole_arm))
+print("max r2_egocentric_whole_arm: ",max(r2_egocentric_whole_arm))
+print("min r2_joint_angles: ",min(r2_joint_angles))
+print("max r2_joint_angles: ",max(r2_joint_angles))
 
 
 
